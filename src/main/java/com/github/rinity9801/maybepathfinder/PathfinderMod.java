@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.command.NumberInvalidException;
@@ -16,6 +17,7 @@ import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import java.util.*;
@@ -30,14 +32,20 @@ public class PathfinderMod {
     private static List<Node> currentPath = new ArrayList<>();
     private static int currentIndex = 0;
 
+    private static final KeyBinding walkKeybind = new KeyBinding("Toggle Route Walk", Keyboard.KEY_G, "Maybe Pathfinder");
+
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        new RouteWalkerConfig(); // Register OneConfig
+        RouteWalker.registerClient(event);
         MinecraftForge.EVENT_BUS.register(this);
     }
 
     @Mod.EventHandler
     public void onServerStart(FMLServerStartingEvent event) {
+        RouteWalker.registerServer(event);
         event.registerServerCommand(new GotoCommand());
+        event.registerServerCommand(new RouteWalkerCommand()); // Fix here
     }
 
     public static class GotoCommand extends CommandBase {
@@ -101,6 +109,28 @@ public class PathfinderMod {
                 currentIndex = 0;
                 sender.addChatMessage(new ChatComponentText("Path found with " + path.size() + " steps."));
             }
+        }
+
+        @Override
+        public int getRequiredPermissionLevel() {
+            return 0;
+        }
+    }
+
+    public static class RouteWalkerCommand extends CommandBase {
+        @Override
+        public String getCommandName() {
+            return "walker";
+        }
+
+        @Override
+        public String getCommandUsage(ICommandSender sender) {
+            return "/walker";
+        }
+
+        @Override
+        public void processCommand(ICommandSender sender, String[] args) {
+            sender.addChatMessage(new ChatComponentText("Route Walker command executed."));
         }
 
         @Override
