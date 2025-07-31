@@ -14,9 +14,9 @@ A Minecraft Forge 1.8.9 client-side mod for smooth, visual pathfinding. Includes
 
 - 🗺️ **Route Walker** (`R` key)  
   Set custom waypoints and follow them in order.
-    - `/walkeradd` — Add current block as a waypoint
-    - `/walkerremove` — Remove the most recent waypoint
-    - `/walkerinsert <index>` — Insert current block at a specific index
+  - `/walkeradd` — Add current block as a waypoint  
+  - `/walkerremove` — Remove the most recent waypoint  
+  - `/walkerinsert <index>` — Insert current block at a specific index
 
 - 🌈 **Gradient Path Rendering**  
   Displays the path as a glowing line from blue (player) to pink (target).
@@ -26,9 +26,9 @@ A Minecraft Forge 1.8.9 client-side mod for smooth, visual pathfinding. Includes
 
 - ⚙️ **OneConfig Integration**  
   Toggle features like:
-    - Sprinting
-    - Left-click holding
-    - Route repeat
+  - Sprinting
+  - Left-click holding
+  - Route repeat
 
 ---
 
