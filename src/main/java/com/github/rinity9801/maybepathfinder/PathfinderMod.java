@@ -35,11 +35,14 @@ public class PathfinderMod {
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new MobPathfinder());
+        RouteWalker.registerClient(event); // Initialize RouteWalker keybinds
+        new RouteWalkerConfig();
     }
 
     @Mod.EventHandler
     public void onServerStart(FMLServerStartingEvent event) {
         event.registerServerCommand(new GotoCommand());
+        RouteWalker.registerServer(event); // Initialize RouteWalker commands
     }
 
     public static class GotoCommand extends CommandBase {

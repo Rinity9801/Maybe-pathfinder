@@ -1,18 +1,16 @@
 [
   {
-    "modid": "${modid}",
-    "name": "Xample Mod",
-    "description": "A mod that is used as an example.",
-    "version": "${version}",
-    "mcversion": "${mcversion}",
-    "url": "https://github.com/romangraef/Forge1.8.9Template/",
+    "modid": "maybepathfinder",
+    "name": "Maybe Pathfinder",
+    "description": "A Minecraft Forge 1.8.9 mod for pathfinding and mob targeting with smooth visuals.",
+    "version": "1.3",
+    "mcversion": "1.8.9",
+    "url": "https://github.com/yourusername/maybepathfinder",
     "updateUrl": "",
-    "authorList": [
-      "You"
-    ],
-    "credits": "",
+    "authorList": ["rinity9801"],
+    "credits": "Created by rinity9801 with help from OpenAI.",
     "logoFile": "",
     "screenshots": [],
-    "dependencies": []
+    "parent": ""
   }
 ]
