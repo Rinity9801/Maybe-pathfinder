@@ -1,9 +1,10 @@
 package com.github.rinity9801.maybepathfinder;
 
 import cc.polyfrost.oneconfig.config.Config;
+import cc.polyfrost.oneconfig.config.annotations.Slider;
+import cc.polyfrost.oneconfig.config.annotations.Switch;
 import cc.polyfrost.oneconfig.config.data.Mod;
 import cc.polyfrost.oneconfig.config.data.ModType;
-import cc.polyfrost.oneconfig.config.annotations.Switch;
 
 public class RouteWalkerConfig extends Config {
 
@@ -15,6 +16,15 @@ public class RouteWalkerConfig extends Config {
 
     @Switch(name = "Repeat Route When Back at First Waypoint")
     public static boolean repeatRoute = true;
+
+    @Switch(name = "Enable Pitch Lock")
+    public static boolean pitchLockEnabled = false;
+
+    @Switch(name = "Enable Debug Logs")
+    public static boolean debugLogs = true;
+
+    @Slider(name = "Locked Pitch Angle", min = -90, max = 90)
+    public static float pitchValue = 45f;
 
     public RouteWalkerConfig() {
         super(new Mod("Route Walker", ModType.UTIL_QOL), "routewalker.json", false, false);

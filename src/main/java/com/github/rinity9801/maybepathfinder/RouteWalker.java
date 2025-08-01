@@ -1,4 +1,3 @@
-// src/main/java/com/github/rinity9801/maybepathfinder/RouteWalker.java
 package com.github.rinity9801.maybepathfinder;
 
 import net.minecraft.client.Minecraft;
@@ -29,9 +28,9 @@ public class RouteWalker {
     private static final List<Vec3> waypoints = new ArrayList<>();
     private static boolean walking = false;
     private static int walkIndex = 0;
-    // Use built-in misc category so Controls GUI won’t crash
-    private static final KeyBinding walkKey = new KeyBinding(
-            "Start Route Walk", Keyboard.KEY_R, "key.categories.misc");
+    private static float currentTurnSpeed = 0f;
+
+    private static final KeyBinding walkKey = new KeyBinding("Toggle Route Walk", Keyboard.KEY_R, "Maybe Pathfinder");
 
     public static void registerClient(FMLInitializationEvent event) {
         ClientRegistry.registerKeyBinding(walkKey);
@@ -52,7 +51,7 @@ public class RouteWalker {
             BlockPos blockPos = new BlockPos(pos);
             Vec3 center = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
             waypoints.add(center);
-            sender.addChatMessage(new ChatComponentText("Added waypoint: " + center));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[Walker] Added waypoint: " + EnumChatFormatting.YELLOW + center));
         }
         @Override public int getRequiredPermissionLevel() { return 0; }
     }
@@ -63,9 +62,10 @@ public class RouteWalker {
         @Override public void processCommand(ICommandSender sender, String[] args) {
             if (!waypoints.isEmpty()) {
                 Vec3 removed = waypoints.remove(waypoints.size() - 1);
-                sender.addChatMessage(new ChatComponentText("Removed waypoint: " + removed));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "[Walker] Removed waypoint: " + EnumChatFormatting.YELLOW + removed));
+                if (walkIndex >= waypoints.size()) walkIndex = waypoints.size() - 1;
             } else {
-                sender.addChatMessage(new ChatComponentText("No waypoints to remove."));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "[Walker] No waypoints to remove."));
             }
         }
         @Override public int getRequiredPermissionLevel() { return 0; }
@@ -76,24 +76,24 @@ public class RouteWalker {
         @Override public String getCommandUsage(ICommandSender sender) { return "/walkerinsert <index>"; }
         @Override public void processCommand(ICommandSender sender, String[] args) {
             if (args.length != 1) {
-                sender.addChatMessage(new ChatComponentText("Usage: /walkerinsert <index>"));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Usage: /walkerinsert <index>"));
                 return;
             }
             int index;
             try { index = Integer.parseInt(args[0]); }
             catch (NumberFormatException e) {
-                sender.addChatMessage(new ChatComponentText("Invalid index."));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Invalid index."));
                 return;
             }
             if (index < 0 || index > waypoints.size()) {
-                sender.addChatMessage(new ChatComponentText("Index out of bounds."));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Index out of bounds."));
                 return;
             }
             Vec3 pos = mc.thePlayer.getPositionVector();
             BlockPos blockPos = new BlockPos(pos);
             Vec3 center = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
             waypoints.add(index, center);
-            sender.addChatMessage(new ChatComponentText("Inserted waypoint #" + index + ": " + center));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[Walker] Inserted waypoint #" + index + ": " + EnumChatFormatting.YELLOW + center));
         }
         @Override public int getRequiredPermissionLevel() { return 0; }
     }
@@ -102,70 +102,83 @@ public class RouteWalker {
     public void onKeyInput(InputEvent.KeyInputEvent event) {
         if (walkKey.isPressed()) {
             walking = !walking;
-            walkIndex = 0;
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
-            mc.thePlayer.setSprinting(false);
-            mc.thePlayer.addChatMessage(new ChatComponentText(
-                    "Route walking: " + (walking ? "Started" : "Stopped")));
+            currentTurnSpeed = 0f;
+            if (mc.thePlayer != null) mc.thePlayer.setSprinting(false);
+            if (RouteWalkerConfig.debugLogs && mc.thePlayer != null) {
+                mc.thePlayer.addChatMessage(new ChatComponentText(
+                        EnumChatFormatting.AQUA + "[Walker] Route walking: " +
+                                (walking ? EnumChatFormatting.GREEN + "Started" : EnumChatFormatting.RED + "Stopped") +
+                                EnumChatFormatting.GRAY + " (Index: " + walkIndex + ")"));
+            }
         }
     }
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (mc.thePlayer == null || mc.theWorld == null) return;
-        boolean shouldWalk = walking && walkIndex < waypoints.size();
-        if (!shouldWalk) {
-            if (walking) {
-                walking = false;
-                walkIndex = 0;
-                KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
-                mc.thePlayer.setSprinting(false);
-                mc.thePlayer.addChatMessage(new ChatComponentText("Route walk stopped."));
-            }
+        if (!walking || mc.thePlayer == null || mc.theWorld == null || waypoints.isEmpty() || walkIndex < 0 || walkIndex >= waypoints.size()) {
+            stopRoute();
             return;
         }
+
         EntityPlayerSP player = mc.thePlayer;
-        Vec3 target = waypoints.get(walkIndex);
-        double dx = (target.xCoord + 0.5) - player.posX;
-        double dz = (target.zCoord + 0.5) - player.posZ;
-        double dy = target.yCoord - player.posY;
-        double dist = Math.sqrt(dx*dx + dz*dz);
-        float desiredYaw = (float)Math.toDegrees(Math.atan2(-dx, dz));
+        Vec3 current = waypoints.get(walkIndex);
+        double dx = (current.xCoord + 0.5) - player.posX;
+        double dz = (current.zCoord + 0.5) - player.posZ;
+        double dy = current.yCoord - player.posY;
+        double dist = Math.sqrt(dx * dx + dz * dz);
+
+        float desiredYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float yawDiff = wrapAngleTo180(desiredYaw - player.rotationYaw);
-        float newYaw = player.rotationYaw + Math.max(-10f, Math.min(10f, yawDiff));
-        player.rotationYaw = newYaw;
-        if (Math.abs(yawDiff) < 15f) {
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), true);
-            player.setSprinting(RouteWalkerConfig.sprintEnabled);
-        } else {
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
-            player.setSprinting(false);
+
+        float maxSpeed = 20f;
+        float turnAccel = 3.2f;
+        float turnFriction = 1.0f;
+
+        float targetSpeed = Math.min(Math.abs(yawDiff), maxSpeed);
+        if (currentTurnSpeed < targetSpeed)
+            currentTurnSpeed += turnAccel;
+        else
+            currentTurnSpeed -= turnFriction;
+
+        currentTurnSpeed = Math.max(0f, Math.min(currentTurnSpeed, maxSpeed));
+        float step = Math.signum(yawDiff) * Math.min(currentTurnSpeed, Math.abs(yawDiff));
+        player.rotationYaw += step;
+
+        if (RouteWalkerConfig.pitchLockEnabled) {
+            player.rotationPitch = RouteWalkerConfig.pitchValue;
         }
+
+        KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), true);
+        if (RouteWalkerConfig.sprintEnabled) player.setSprinting(true);
         if (RouteWalkerConfig.holdLeftClick) simulateLeftClick();
-        if (dist < 0.5 && Math.abs(dy) <= 0.5) {
-            player.addChatMessage(new ChatComponentText(
-                    String.format("[RouteWalker] Reached #%d at [%.1f, %.1f, %.1f]",
-                            walkIndex, target.xCoord, target.yCoord, target.zCoord)));
+
+        boolean closeEnough = dist < 0.75;
+        boolean alignedVertically = Math.abs(dy) <= 0.3;
+        boolean alignedYaw = Math.abs(wrapAngleTo180(desiredYaw - player.rotationYaw)) < 8f;
+
+        if (closeEnough && alignedVertically && alignedYaw) {
             walkIndex++;
             if (walkIndex >= waypoints.size()) {
-                if (RouteWalkerConfig.repeatRoute) walkIndex = 0;
-                else {
+                if (RouteWalkerConfig.repeatRoute) {
+                    walkIndex = 0;
+                } else {
                     walking = false;
                     player.setSprinting(false);
-                    player.addChatMessage(new ChatComponentText("Route walk complete."));
+                    if (RouteWalkerConfig.debugLogs) {
+                        player.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[Walker] Route walk complete."));
+                    }
+                    return;
                 }
             }
+            currentTurnSpeed = 0f;
             return;
         }
-        if (dy > 0.5 && player.onGround) {
+
+        if (dy > 0.5 && player.onGround && dist < 1.2) {
             BlockPos front = new BlockPos(
-                    player.posX + dx*0.5, player.posY, player.posZ + dz*0.5);
+                    player.posX + dx * 0.5, player.posY, player.posZ + dz * 0.5);
             if (!mc.theWorld.isAirBlock(front)) player.jump();
         }
-    }
-
-    private void simulateLeftClick() {
-        KeyBinding.setKeyBindState(mc.gameSettings.keyBindAttack.getKeyCode(), true);
     }
 
     private float wrapAngleTo180(float angle) {
@@ -175,13 +188,17 @@ public class RouteWalker {
         return angle;
     }
 
+    private void simulateLeftClick() {
+        KeyBinding.setKeyBindState(mc.gameSettings.keyBindAttack.getKeyCode(), true);
+    }
+
     @SubscribeEvent
     public void onRenderWorld(RenderWorldLastEvent event) {
         if (waypoints.isEmpty() || mc.thePlayer == null || mc.theWorld == null) return;
         EntityPlayerSP player = mc.thePlayer;
-        double px = player.lastTickPosX + (player.posX - player.lastTickPosX)*event.partialTicks;
-        double py = player.lastTickPosY + (player.posY - player.lastTickPosY)*event.partialTicks;
-        double pz = player.lastTickPosZ + (player.posZ - player.lastTickPosZ)*event.partialTicks;
+        double px = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.partialTicks;
+        double py = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.partialTicks;
+        double pz = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.partialTicks;
         Tessellator tess = Tessellator.getInstance();
         WorldRenderer wr = tess.getWorldRenderer();
         GlStateManager.pushMatrix();
@@ -190,16 +207,18 @@ public class RouteWalker {
         GlStateManager.disableLighting();
         GlStateManager.disableDepth();
         GlStateManager.disableCull();
-        GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, 1,0);
+        GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, 1, 0);
         for (Vec3 vec : waypoints) {
             AxisAlignedBB bb = new AxisAlignedBB(
-                    vec.xCoord - px, vec.yCoord -1 - py, vec.zCoord - pz,
-                    vec.xCoord+1 - px, vec.yCoord - py, vec.zCoord+1 - pz);
-            RenderGlobal.drawOutlinedBoundingBox(bb, 0,0,255,255);
+                    vec.xCoord - px, vec.yCoord - 1 - py, vec.zCoord - pz,
+                    vec.xCoord + 1 - px, vec.yCoord - py, vec.zCoord + 1 - pz);
+            RenderGlobal.drawOutlinedBoundingBox(bb, 0, 0, 255, 255);
         }
         wr.begin(GL11.GL_LINE_STRIP, DefaultVertexFormats.POSITION_COLOR);
-        for (Vec3 vec : waypoints) wr.pos(vec.xCoord+0.5-px, vec.yCoord-0.5-py, vec.zCoord+0.5-pz)
-                .color(0f,0f,1f,1f).endVertex();
+        for (Vec3 vec : waypoints) {
+            wr.pos(vec.xCoord + 0.5 - px, vec.yCoord - 0.5 - py, vec.zCoord + 0.5 - pz)
+                    .color(0f, 0f, 1f, 1f).endVertex();
+        }
         tess.draw();
         GlStateManager.enableCull();
         GlStateManager.enableDepth();
@@ -208,11 +227,16 @@ public class RouteWalker {
         GlStateManager.popMatrix();
     }
 
-    public static List<Vec3> getWaypoints() { return waypoints; }
+    public static List<Vec3> getWaypoints() {
+        return waypoints;
+    }
+
     public static void stopRoute() {
-        walking=false; walkIndex=0;
-        KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
-        mc.thePlayer.setSprinting(false);
+        walking = false;
+        walkIndex = 0;
+        currentTurnSpeed = 0f;
+        if (mc.thePlayer != null) {
+            mc.thePlayer.setSprinting(false);
+        }
     }
 }
-

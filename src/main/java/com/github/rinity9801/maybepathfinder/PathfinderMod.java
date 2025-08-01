@@ -35,6 +35,7 @@ public class PathfinderMod {
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new MobPathfinder());
+        SimpleAutoWalker.registerClient(event);
         RouteWalker.registerClient(event); // Initialize RouteWalker keybinds
         new RouteWalkerConfig();
     }
